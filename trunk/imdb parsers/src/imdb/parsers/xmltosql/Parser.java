@@ -1,15 +1,18 @@
 package imdb.parsers.xmltosql;
 
+import imdb.parsers.Utils;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
@@ -18,13 +21,11 @@ import javax.xml.stream.XMLStreamReader;
 
 public abstract class Parser {
     
-    private static final Logger    LOG = Logger.getLogger(Parser.class.getSimpleName());
-    
     private static XMLInputFactory xif = XMLInputFactory.newInstance();
     
-    private File		   inFile;
-    private XMLStreamReader	in;
-    private Connection	     conn;
+    private File inFile;
+    private XMLStreamReader in;
+    private Connection conn;
     
     public Parser(Connection conn) {
 	inFile = new File(getXMLFilenameWithoutExtension() + getXMLExtension());
@@ -39,12 +40,26 @@ public abstract class Parser {
     }
     
     public void parse() {
-	LOG.fine("Parsing: " + getXMLFilenameWithoutExtension() + getXMLExtension());
+	XMLToSQL.LOG.fine("Parsing: " + getXMLFilenameWithoutExtension() + getXMLExtension());
+	// drop table
+	String dropQuery = "DROP TABLE IF EXISTS " + getTableName();
 	try {
-	    // attempt to create table if it does not exist
+	    Statement stmt = conn.createStatement();
+	    stmt.executeUpdate(dropQuery);
+	    stmt.close();
+	} catch (SQLException e) {
+	    XMLToSQL.LOG.log(Level.SEVERE, "SQL error, query: " + dropQuery, e);
+	}
+	// create table
+	try {
 	    Statement stmt = conn.createStatement();
 	    stmt.executeUpdate(getCreateTableStatement());
-	    //
+	    stmt.close();
+	} catch (SQLException e) {
+	    XMLToSQL.LOG.log(Level.SEVERE, "SQL error, query: " + getCreateTableStatement(), e);
+	}
+	// populate table
+	try {
 	    Map<String, String> columnNameValueMap = null;
 	    while (in.hasNext()) {
 		int event = in.next();
@@ -57,19 +72,20 @@ public abstract class Parser {
 		    // not <records> or <record>, must be an element inside <record>
 		    columnNameValueMap.put(in.getLocalName(), in.getElementText());
 		} else if (event == XMLStreamConstants.END_ELEMENT && in.getLocalName().equals("record")) {
+		    try{
 		    insertValues(conn, columnNameValueMap);
+		    }catch(SQLException e){
+			XMLToSQL.LOG.log(Level.WARNING, "SQL Error", e);
+		    }
 		    columnNameValueMap = null;
 		}
 	    }
-	    LOG.fine("Finished Parsing: " + getXMLFilenameWithoutExtension() + getXMLExtension());
+	    XMLToSQL.LOG.fine("Finished Parsing: " + getXMLFilenameWithoutExtension() + getXMLExtension());
 	} catch (XMLStreamException e) {
-	    throw new RuntimeException(e);
-	} catch (SQLException e) {
 	    throw new RuntimeException(e);
 	} finally {
 	    try {
 		in.close();
-		conn.close();
 	    } catch (Exception e) {}
 	}
 	
@@ -77,31 +93,32 @@ public abstract class Parser {
     
     
     protected void insertValues(Connection conn, Map<String, String> columnNameValueMap) throws SQLException {
-	LOG.fine("insertValues called");
-	Statement stmt = conn.createStatement();
-	String columnNames = "";
-	String values = "";
-	boolean first = true;
-	for (String key : columnNameValueMap.keySet()) {
-	    if (!first) {
-		// this acts like a join so there is no comma after the last item
-		columnNames += ",";
-		values += ",";
-	    }
-	    columnNames += key;
-	    values += "\"" + columnNameValueMap.get(key) + "\"";
-	    first = false;
-	}
-	String query = "INSERT INTO " + getTableName() + " (" + columnNames + ") VALUES (" + values + ");";
-	LOG.fine(query);
+	XMLToSQL.LOG.finer("insertValues called");
+	PreparedStatement stmt = null;
+	// build a query that uses "?" as placeholders for values
+	// this allows us to sanitize input, especially needed in this situation where movies can have single and double
+	// quotes in their names
+	List<String> columnNamesOrdered = new ArrayList<String>(columnNameValueMap.keySet());
+	String query = getInsertStatement(columnNamesOrdered);
+	XMLToSQL.LOG.finer(query);
 	try {
-	    stmt.executeUpdate(query);
+	    stmt = conn.prepareStatement(query);
+	    int index = 1; // prepared statement index starts at 1
+	    for (String columnName : columnNamesOrdered) {
+		setValue(stmt, index, columnName, columnNameValueMap.get(columnName));
+		index++;
+	    }
+	    XMLToSQL.LOG.fine("Prepared statement: " + stmt.toString());
+	    stmt.executeUpdate();
 	} catch (SQLException e) {
 	    if (e.getMessage().startsWith("Duplicate entry")) {
-		LOG.fine("Attmpted to insert a Duplicate entry, ignoring");
+		XMLToSQL.LOG.finer("Attmpted to insert a Duplicate entry, ignoring");
 	    } else {
+		XMLToSQL.LOG.log(Level.SEVERE, "SQL exception, query: " + query + ", prepared statement: " + stmt.toString(), e);
 		throw new SQLException(e);
 	    }
+	} finally {
+	    if (stmt != null) stmt.close();
 	}
     }
     
@@ -128,6 +145,16 @@ public abstract class Parser {
 	return ".xml";
     }
     
+    private String getInsertStatement(List<String> columnNamesOrdered) {
+	String columnNamesString = Utils.joinStringList(columnNamesOrdered, ",");
+	List<String> placeholders = new ArrayList<String>();
+	for (int i = 0; i < columnNamesOrdered.size(); i++) {
+	    placeholders.add("?");
+	}
+	String placeholdersString = Utils.joinStringList(placeholders, ",");
+	return "INSERT INTO " + getTableName() + " (" + columnNamesString + ") VALUES (" + placeholdersString + ");";
+    }
+    
     /*
      * Abstract methods
      */
@@ -137,11 +164,6 @@ public abstract class Parser {
     
     protected abstract String getCreateTableStatement();
     
-    /**
-     * a value may need to be wrapped to convert from data type String as stored in xml to a different data type. For
-     * example, a "votes" column value might be wrapped in "number(" and ")" if the data type definition of the table
-     * says it requires a number.
-     */
-    // protected abstract String getWrappedValue(String columnName);
+    protected abstract void setValue(PreparedStatement stmt, int index, String columnKey, String valueString) throws SQLException;
     
 }

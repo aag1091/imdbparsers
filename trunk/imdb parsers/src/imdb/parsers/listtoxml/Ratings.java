@@ -1,12 +1,13 @@
 package imdb.parsers.listtoxml;
 
+import imdb.parsers.Utils;
 import java.util.HashMap;
 import java.util.Map;
 
 
-public class Ratings extends OneLinePerRecordParser {
+public class Ratings extends Parser {
     
-    public enum COLUMNS {name, rating, votes};
+    public enum COLUMNS {rating, votes};
     
     public Ratings(String filePath){super(filePath);}
     public Ratings(){super();}
@@ -27,10 +28,11 @@ public class Ratings extends OneLinePerRecordParser {
 	// [*(new)] (distribution) (votes) (rating) (name)
 	Map<String, String> r = new HashMap<String, String>();
 	String[] lineParts = Utils.splitByMultipleSpaces(line, 5);
-	r.put(COLUMNS.name.toString(), lineParts[4]);
-	r.put(COLUMNS.rating.toString(), lineParts[3]);
-	r.put(COLUMNS.votes.toString(), lineParts[2]);
+	String fullName = lineParts[4];
+	if(!Movies.isUseful(fullName)) return null;
+	r.putAll(Movies.getMovieKey(fullName));
+	r.put(COLUMNS.rating.name(), lineParts[3]);
+	r.put(COLUMNS.votes.name(), lineParts[2]);
 	return r;
     }
-
 }

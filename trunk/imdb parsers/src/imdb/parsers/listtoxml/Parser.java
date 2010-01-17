@@ -1,11 +1,13 @@
 package imdb.parsers.listtoxml;
 
+import imdb.parsers.Utils;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
@@ -14,74 +16,101 @@ import javax.xml.stream.XMLStreamWriter;
 
 public abstract class Parser {
     
-    private static final Logger     LOG = Logger.getLogger(Parser.class.getSimpleName());
+    private static final Logger LOG = Utils.getConsoleLogger(Parser.class);
     
     private static XMLOutputFactory xof = XMLOutputFactory.newInstance();
     
-    private File		    inFile;
-    private BufferedReader	    in;
-    private File		    outFile;
-    private XMLStreamWriter	    out;
+    private File inFile;
+    private BufferedReader in;
+    protected long inLineNumber;
+    private File outFile;
+    private XMLStreamWriter out;
+    
+    private Map<String, String> nextRecord;
     
     public Parser() {
 	inFile = new File(getListFilenameWithoutExtension() + getListExtension());
 	outFile = new File(getListFilenameWithoutExtension() + getXMLExtension());
-	getReader();
-	getWriter();
     }
     
     
     public Parser(String filePath) {
 	inFile = new File(filePath, getListFilenameWithoutExtension() + getListExtension());
 	outFile = new File(filePath, getListFilenameWithoutExtension() + getXMLExtension());
-	getReader();
-	getWriter();
     }
     
     public void parse() {
 	LOG.fine("Parsing: " + getListFilenameWithoutExtension());
+	getNewReader();
+	getNewWriter();
+	// count number of lines in file
+	// must be called before getting first record
+	prepareProgressReporting();
+	// get first record
+	nextRecord = subclassGetNextRecord();
+	//
 	try {
 	    // explicitly state UTF-8 encoding
 	    out.writeStartDocument("UTF-8", "1.0");
 	    out.writeStartElement("records");
-	    Map<String, String> record;
-	    while ((record = getRecord()) != null) {
+	    while (hasMoreRecords()) {
+		Map<String, String> record = getNextRecord();
 		out.writeStartElement("record");
 		for (String key : record.keySet()) {
 		    writeElement(out, key, record.get(key));
 		}
 		out.writeEndElement(); // </record>
+		printProgressReport();
 	    }
 	    out.writeEndElement(); // </records>
 	    out.writeEndDocument();
 	    LOG.fine("Finished Parsing: " + getListFilenameWithoutExtension());
 	} catch (XMLStreamException e) {
 	    throw new RuntimeException(e);
-	} finally{
-	    try{
+	} finally {
+	    try {
 		in.close();
 		out.close();
-	    }catch(Exception e){}
+	    } catch (Exception e) {}
 	}
     }
     
-
-    
-    /**
-     * @return null if end of data or file
+    /*
+     * Record retrieval
      */
-    private Map<String, String> getRecord() {
-	   if (in == null) throw new IllegalStateException("BufferedReader not set yet.");
-	   return parseNextRecord(in);
+    protected boolean hasMoreRecords() {
+	return nextRecord != null;
     }
     
+    private Map<String, String> getNextRecord() {
+	if (!hasMoreRecords()) throw new IllegalStateException("hasMoreRecords() is false");
+	Map<String, String> toReturn = nextRecord;
+	nextRecord = subclassGetNextRecord();
+	return toReturn;
+    }
+
+    private Map<String, String> subclassGetNextRecord() {
+	try {
+	    Map<String, String> parsed = null;
+	    // get record, skipping any lines as per subclass
+	    while (parsed == null) {
+		String line = in.readLine();
+		if (line == null || isEndOfData(line)) return null; // no more
+		parsed = parseLine(line);
+		inLineNumber++;
+	    }
+	    if (parsed == null) return null; // no more
+	    return parsed;
+	} catch (Exception e) {
+	    throw new RuntimeException(e);
+	}
+    }
     
-
-
     /*
      * Reader & Writer
      */
-    private void getReader() {
+    private void getNewReader() {
+	inLineNumber = 0;
 	try {
 	    if (in != null) in.close();
 	    in = new BufferedReader(new FileReader(inFile));
@@ -90,6 +119,7 @@ public abstract class Parser {
 		if (isStart(line)) {
 		    for (int i = 0; i < getNumberOfLinesToSkipBeforeStart(); i++) {
 			in.readLine();
+			inLineNumber++;
 		    }
 		    break;
 		}
@@ -99,7 +129,7 @@ public abstract class Parser {
 	}
     }
     
-    private void getWriter() {
+    private void getNewWriter() {
 	try {
 	    if (out != null) out.close();
 	    out = xof.createXMLStreamWriter(new FileOutputStream(outFile), "UTF-8"); // explicit encoding
@@ -110,17 +140,66 @@ public abstract class Parser {
 	}
     }
     
+    private long numberOfLinesInFile;
+    private long timeAtStart;
+    private long timeAtLastReport;
+    
+    private void prepareProgressReporting() {
+	if(nextRecord != null) throw new IllegalStateException("prepareProgressReporting() must be called before starting parsing of actual data, because it uses the same reader");
+	numberOfLinesInFile = 0;
+	timeAtStart = System.currentTimeMillis();
+	timeAtLastReport = timeAtStart;
+	try {
+	    String line;
+	    while ((line = in.readLine()) != null){
+		if(isEndOfData(line)) break;
+		numberOfLinesInFile++;
+	    }
+		
+		
+	} catch (IOException e) {
+	    LOG.log(Level.WARNING, "Could not count number of lines in file in preperation for progress reporting", e);
+	}
+	getNewReader();
+    }
+    
+    
+    private void printProgressReport() {
+	if (inLineNumber > numberOfLinesInFile) return;
+	//
+	long timeSinceLastReport = System.currentTimeMillis() - timeAtLastReport;
+	if (timeSinceLastReport < 1000) return;
+	timeAtLastReport = System.currentTimeMillis();
+	//
+	String str = getListFilenameWithoutExtension()+getListExtension() + " [";
+	int cols = 20;
+	float percent = (float) inLineNumber / (float) numberOfLinesInFile;
+	int colsFull = (int) (percent * cols);
+	for (int i = 0; i < cols; i++) {
+	    str += i <= colsFull ? "=" : " ";
+	}
+	str += "] \t" + (((float) ((int) (percent * 10000))) / 100) + "% \t" + inLineNumber + " / " + numberOfLinesInFile;
+	System.out.println(str);
+    }
     
     /*
      * Methods expected to be overloaded sometimes
      */
-    protected String getListExtension() {return ".list";}
-    protected String getXMLExtension() {return ".xml";}
-    protected int numberOfLinesPerParseGroup(){return 1;}
+    protected String getListExtension() {
+	return ".list";
+    }
     
-
+    protected String getXMLExtension() {
+	return ".xml";
+    }
+    
+    protected int numberOfLinesPerParseGroup() {
+	return 1;
+    }
+    
+    
     /*
-     * Abstract methods 
+     * Abstract methods
      */
     protected abstract String getListFilenameWithoutExtension();
     
@@ -130,13 +209,16 @@ public abstract class Parser {
     
     protected abstract boolean isStart(String line);
     
-    protected abstract Map<String, String> parseNextRecord(BufferedReader in);
-    
+    /**
+     * return null if you need more lines to create a record
+     * @param index 
+     */
+    protected abstract Map<String, String> parseLine(String line);
     
     /*
      * Helper methods
      */
-    static void writeElement(XMLStreamWriter out, String localName, String value) throws XMLStreamException {
+    public static void writeElement(XMLStreamWriter out, String localName, String value) throws XMLStreamException {
 	out.writeStartElement(localName);
 	out.writeCharacters(value);
 	out.writeEndElement();

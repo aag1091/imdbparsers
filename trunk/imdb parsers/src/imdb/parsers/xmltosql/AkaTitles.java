@@ -5,30 +5,28 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 
 
-public class Genres extends Parser {
+public class AkaTitles extends Parser {
     
-    enum COLUMNS {
-	genre
-    };
+    private static final String TABLE_NAME = "akatitles";
     
-    public Genres(Connection conn) {
+    public AkaTitles(Connection conn) {
 	super(conn);
     }
     
-    public Genres(String filePath, Connection conn) {
+    public AkaTitles(String filePath, Connection conn) {
 	super(filePath, conn);
     }
     
     protected String getTableName() {
-	return "genres";
+	return TABLE_NAME;
     }
     
     protected String getXMLFilenameWithoutExtension() {
-	return "genres";
+	return "aka-titles";
     }
     
     protected String getCreateTableStatement() {
-	return "CREATE TABLE genres (" + Movies.KEY_COLUMNS + ", genre char(100) NOT NULL, " + Movies.FOREIGN_KEY_STRING + ");";
+	return "CREATE TABLE "+TABLE_NAME+" ("+Movies.KEY_COLUMNS+", akatitle char(255) NOT NULL, "+Movies.FOREIGN_KEY_STRING+");";
     }
     
     protected void setValue(PreparedStatement stmt, int index, String columnKey, String valueString) throws SQLException {
