@@ -5,7 +5,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -43,20 +42,23 @@ public abstract class Parser {
 	XMLToSQL.LOG.fine("Parsing: " + getXMLFilenameWithoutExtension() + getXMLExtension());
 	// drop table
 	String dropQuery = "DROP TABLE IF EXISTS " + getTableName();
+	Statement stmt = null;
 	try {
-	    Statement stmt = conn.createStatement();
+	    stmt = conn.createStatement();
 	    stmt.executeUpdate(dropQuery);
-	    stmt.close();
 	} catch (SQLException e) {
 	    XMLToSQL.LOG.log(Level.SEVERE, "SQL error, query: " + dropQuery, e);
+	} finally{
+	    try {
+		stmt.close();
+	    } catch (SQLException e) {}
 	}
-	// create table
+	// prepare (create tables)
 	try {
-	    Statement stmt = conn.createStatement();
-	    stmt.executeUpdate(getCreateTableStatement());
-	    stmt.close();
+	    beforeInserts(conn);
 	} catch (SQLException e) {
-	    XMLToSQL.LOG.log(Level.SEVERE, "SQL error, query: " + getCreateTableStatement(), e);
+	    XMLToSQL.LOG.log(Level.SEVERE, "SQL error", e);
+	    throw new RuntimeException(e);
 	}
 	// populate table
 	try {
@@ -73,7 +75,7 @@ public abstract class Parser {
 		    columnNameValueMap.put(in.getLocalName(), in.getElementText());
 		} else if (event == XMLStreamConstants.END_ELEMENT && in.getLocalName().equals("record")) {
 		    try{
-		    insertValues(conn, columnNameValueMap);
+			insertValues(conn, columnNameValueMap);
 		    }catch(SQLException e){
 			XMLToSQL.LOG.log(Level.WARNING, "SQL Error", e);
 		    }
@@ -93,35 +95,33 @@ public abstract class Parser {
     
     
     protected void insertValues(Connection conn, Map<String, String> columnNameValueMap) throws SQLException {
-	XMLToSQL.LOG.finer("insertValues called");
-	PreparedStatement stmt = null;
-	// build a query that uses "?" as placeholders for values
+	// before insert
+	beforeInsert(conn, columnNameValueMap);
+	// insert
+	NamedParameterStatement namedStmt = null;
+	// build a query that uses placeholders for values
 	// this allows us to sanitize input, especially needed in this situation where movies can have single and double
 	// quotes in their names
-	List<String> columnNamesOrdered = new ArrayList<String>(columnNameValueMap.keySet());
-	String query = getInsertStatement(columnNamesOrdered);
+	String query = getInsertStatement(columnNameValueMap);
 	XMLToSQL.LOG.finer(query);
 	try {
-	    stmt = conn.prepareStatement(query);
-	    int index = 1; // prepared statement index starts at 1
-	    for (String columnName : columnNamesOrdered) {
-		setValue(stmt, index, columnName, columnNameValueMap.get(columnName));
-		index++;
+	    namedStmt = new NamedParameterStatement(conn, query);
+	    for (String columnName : columnNameValueMap.keySet()) {
+		setValue(namedStmt, columnName, columnNameValueMap.get(columnName));
 	    }
-	    XMLToSQL.LOG.fine("Prepared statement: " + stmt.toString());
-	    stmt.executeUpdate();
+	    XMLToSQL.LOG.fine("Prepared statement: " + namedStmt.toString());
+	    namedStmt.executeUpdate();
 	} catch (SQLException e) {
-	    if (e.getMessage().startsWith("Duplicate entry")) {
+	    if (e.getMessage().startsWith("Duplicate")) {
 		XMLToSQL.LOG.finer("Attmpted to insert a Duplicate entry, ignoring");
 	    } else {
-		XMLToSQL.LOG.log(Level.SEVERE, "SQL exception, query: " + query + ", prepared statement: " + stmt.toString(), e);
+		XMLToSQL.LOG.log(Level.SEVERE, "SQL exception, query: " + query + ", prepared statement: " + namedStmt.toString(), e);
 		throw new SQLException(e);
 	    }
 	} finally {
-	    if (stmt != null) stmt.close();
+	    if (namedStmt != null) namedStmt.close();
 	}
     }
-    
     
     /*
      * Reader
@@ -137,7 +137,6 @@ public abstract class Parser {
 	}
     }
     
-    
     /*
      * Methods expected to be overloaded sometimes
      */
@@ -145,11 +144,17 @@ public abstract class Parser {
 	return ".xml";
     }
     
-    private String getInsertStatement(List<String> columnNamesOrdered) {
+    /**
+     * given column names, e.g. {B, A, C}
+     * returns INSERT INTO table (B,A,C) VALUES (:B,:A,:C);
+     * where :X is a placeholder, which can be set using stmt.setString("X", columnNameValueMap.get(X))
+     */
+    protected String getInsertStatement(Map<String, String> columnNameValueMap) {
+	List<String> columnNamesOrdered = new ArrayList<String>(columnNameValueMap.keySet());
 	String columnNamesString = Utils.joinStringList(columnNamesOrdered, ",");
 	List<String> placeholders = new ArrayList<String>();
-	for (int i = 0; i < columnNamesOrdered.size(); i++) {
-	    placeholders.add("?");
+	for (String columnName : columnNamesOrdered) {
+	    placeholders.add(":"+columnName);
 	}
 	String placeholdersString = Utils.joinStringList(placeholders, ",");
 	return "INSERT INTO " + getTableName() + " (" + columnNamesString + ") VALUES (" + placeholdersString + ");";
@@ -162,8 +167,10 @@ public abstract class Parser {
     
     protected abstract String getTableName();
     
-    protected abstract String getCreateTableStatement();
+    protected abstract void beforeInserts(Connection conn) throws SQLException;
     
-    protected abstract void setValue(PreparedStatement stmt, int index, String columnKey, String valueString) throws SQLException;
+    protected abstract void beforeInsert(Connection conn, Map<String, String> columnNameValueMap) throws SQLException;
+    
+    protected abstract void setValue(NamedParameterStatement namedStmt, String columnKey, String valueString) throws SQLException;
     
 }
