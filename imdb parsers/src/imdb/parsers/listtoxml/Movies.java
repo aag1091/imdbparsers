@@ -167,7 +167,7 @@ public class Movies extends Parser {
     }
     
     public static boolean isTVShow(String fullName) {
-	return fullName.contains("(TV)");
+	return fullName.contains("(TV)") || (fullName.contains("{") && fullName.contains("}"));
     }
     
     public static boolean isMadeForVideoMovie(String fullName) {

@@ -84,6 +84,10 @@ public class XMLToSQL {
     
     public void run() {
 	LOG.info("Parsing from XML to SQL");
+	LOG.info("connection:"+jdbcConnection);
+	LOG.info("driver:"+jdbcDriver);
+	LOG.info("filePath:"+filePath);
+	LOG.info("parse:"+onlyParse);
 	if (jdbcConnection == null) throw new IllegalStateException();
 	Connection conn;
 	try {

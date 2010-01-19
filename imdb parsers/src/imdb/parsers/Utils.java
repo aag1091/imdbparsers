@@ -59,15 +59,9 @@ public class Utils {
         return sb.toString();
     }
 
-    /**
-     * Splits a string at the points where there are two or more spaces
-     * "a b  c      d" gives {"a b", "c", "d"} "  x" gives {"", "x"}
-     * 
-     * @throws Exception
-     */
-    public static String[] splitByMultipleSpaces(String in, int expectedNumberOfItems) throws IllegalArgumentException {
-        String truncated = in;// .replaceAll("\\p{Cntrl}", ""); // remove
-        // non-printable characters
+
+    public static String[] splitByMultipleSpaces(String in, int expectedNumberOfItems) throws IllegalArgumentException{
+        String truncated = in;
         String[] inSplit = truncated.split("  ");
         List<String> rList = new ArrayList<String>();
         int added = 0;
@@ -84,7 +78,7 @@ public class Utils {
         String[] r = rList.toArray(new String[rList.size()]);
         if (rList.size() != expectedNumberOfItems) {
             throw new IllegalArgumentException("expectedNumberOfItems: " + expectedNumberOfItems + ", differs from actual size:"
-        	    + rList.size() + ", in array:" + join(r, ","));
+        	    + rList.size() + ", in: '"+in+"', in array: '" + join(r, ",")+"'");
         }
         return r;
     }
