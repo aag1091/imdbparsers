@@ -43,8 +43,7 @@ public abstract class Parser {
 	LOG.fine("Parsing: " + getListFilenameWithoutExtension());
 	getNewReader();
 	getNewWriter();
-	// count number of lines in file
-	// must be called before getting first record
+	// prepare progress reporting
 	prepareProgressReporting();
 	// get first record
 	nextRecord = subclassGetNextRecord();

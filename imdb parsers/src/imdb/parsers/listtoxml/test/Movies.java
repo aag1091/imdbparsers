@@ -48,6 +48,7 @@ public class Movies {
 	String test16 = "video game (1999) (VG)";
 	String test17 = "for-video-movie (1999) (V)";
 	String test18 = "\"tv show\" (1999) (TV) {episode 1}";
+	String test19 = "\"tv show no tv tag\" (1999) {episode 1}";
 	testIsMovie(test15, true);
 	testIsMovie(test16, false);
 	testIsMovie(test17, true);
@@ -59,7 +60,8 @@ public class Movies {
 	testIsUseful(test15, true);
 	testIsUseful(test16, false);
 	testIsUseful(test17, true);
-	testIsUseful(test18, true);
+	testIsUseful(test18, false);
+	testIsUseful(test19, false);
 	
 	System.out.println("test movie name uniqueness");
 	testIsUniqueNameForYear(test3, false);
@@ -176,17 +178,17 @@ public class Movies {
      */
     private static void printResult(String fullName, String need, String testReturn){
 	if(need.equals(testReturn)){
-	    System.out.println(" PASS - Need: "+need+", Got: "+testReturn+", with: "+fullName);
+	    System.out.println("\tPASS - Need: "+need+", Got: "+testReturn+", with: "+fullName);
 	}else{
-	    System.out.println(" FAIL - Need: "+need+", Got: "+testReturn+", with: "+fullName);
+	    System.out.println("***\tFAIL - Need: "+need+", Got: "+testReturn+", with: "+fullName);
 	}
     }
     
     private static void printResult(String fullName, boolean need, boolean testReturn){
 	if(need == testReturn){
-	    System.out.println(" PASS - Need: "+need+", Got: "+testReturn+", with: "+fullName);
+	    System.out.println("\tPASS - Need: "+need+", Got: "+testReturn+", with: "+fullName);
 	}else{
-	    System.out.println(" FAIL - Need: "+need+", Got: "+testReturn+", with: "+fullName);
+	    System.out.println("***\tFAIL - Need: "+need+", Got: "+testReturn+", with: "+fullName);
 	}
     }
 }

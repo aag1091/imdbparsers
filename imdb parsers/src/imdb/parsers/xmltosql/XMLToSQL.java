@@ -6,6 +6,7 @@ import java.lang.reflect.Constructor;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -29,9 +30,13 @@ import java.util.logging.Logger;
  */
 public class XMLToSQL {
     
-    // The parsers to run. Must be of type Parser.
+    // The parsers to run. Must be of type Parser
     @SuppressWarnings("unchecked")
     Class[] PARSERS = {Movies.class, Genres.class, Ratings.class, AkaTitles.class};
+    
+    // a valid DROP TABLE order (otherwise if you do parse:all you will get a MySQLIntegrityConstraintViolationException)
+    @SuppressWarnings("unchecked")
+    Class[] PARSERS_DROP_TABLE_ORDER = {Genres.class, Ratings.class, AkaTitles.class, Movies.class};
     
     public static final Logger LOG = Utils.getConsoleLogger(XMLToSQL.class);
     private static final String USAGE = "Usage: java imdb.parsers.xmltosql.XMLToSQL connection:jdbc-url parse:classname-or-all [driver:jdbc-driver] [filepath:path/to/directory/holding/lists] [debug]\n"
@@ -101,6 +106,8 @@ public class XMLToSQL {
 	    throw new RuntimeException(e);
 	}
 	if (onlyParse != null) validateOnlyParse();
+	// CREATE PARSERS
+	List<Parser> parsers = new ArrayList<Parser>();
 	for (Class<Parser> parserClass : PARSERS) {
 	    if (onlyParse != null && !parserClass.getSimpleName().equalsIgnoreCase(onlyParse)) continue;
 	    LOG.finest("Instantiating parser: " + parserClass.getSimpleName());
@@ -121,10 +128,27 @@ public class XMLToSQL {
 		LOG.log(Level.SEVERE, "Could not instantiate a parser", e);
 		continue;
 	    }
-	    LOG.fine("Parsing: " + parserClass.getSimpleName());
-	    parser.parse();
-	    LOG.fine("Parsing: " + parserClass.getSimpleName() + " - finished");
+	    parsers.add(parser);
 	}
+	// DROP
+	for(Class<Parser> parserClass : PARSERS_DROP_TABLE_ORDER){
+	    for (Parser parser : parsers) {
+		if(parser.getClass().equals(parserClass)){
+		    parser.beforeParse();
+		}
+	    }
+	}
+	// CREATE TABLES & FILL
+	for(Class<Parser> parserClass : PARSERS){
+	    for (Parser parser : parsers) {
+		if(parser.getClass().equals(parserClass)){
+		    LOG.fine("Parsing: " + parserClass.getSimpleName());
+		    parser.parse();
+		    LOG.fine("Parsing: " + parserClass.getSimpleName() + " - finished");
+		}
+	    }
+	}    
+	// CLOSE SQL CONNECTION
 	try {
 	    conn.close();
 	} catch (SQLException e) {}

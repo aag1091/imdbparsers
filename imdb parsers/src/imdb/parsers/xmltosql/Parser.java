@@ -24,6 +24,7 @@ public abstract class Parser {
     
     private File inFile;
     private XMLStreamReader in;
+    protected long inRecordNumber;
     private Connection conn;
     
     public Parser(Connection conn) {
@@ -40,19 +41,8 @@ public abstract class Parser {
     
     public void parse() {
 	XMLToSQL.LOG.fine("Parsing: " + getXMLFilenameWithoutExtension() + getXMLExtension());
-	// drop table
-	String dropQuery = "DROP TABLE IF EXISTS " + getTableName();
-	Statement stmt = null;
-	try {
-	    stmt = conn.createStatement();
-	    stmt.executeUpdate(dropQuery);
-	} catch (SQLException e) {
-	    XMLToSQL.LOG.log(Level.SEVERE, "SQL error, query: " + dropQuery, e);
-	} finally{
-	    try {
-		stmt.close();
-	    } catch (SQLException e) {}
-	}
+	// prepare progress reporting
+	prepareProgressReporting();
 	// prepare (create tables)
 	try {
 	    beforeInserts(conn);
@@ -70,13 +60,15 @@ public abstract class Parser {
 		} else if (event == XMLStreamConstants.START_ELEMENT && in.getLocalName().equals("record")) {
 		    // open record element
 		    columnNameValueMap = new HashMap<String, String>();
+		    inRecordNumber++;
+		    printProgressReport();
 		} else if (event == XMLStreamConstants.START_ELEMENT) {
 		    // not <records> or <record>, must be an element inside <record>
 		    columnNameValueMap.put(in.getLocalName(), in.getElementText());
 		} else if (event == XMLStreamConstants.END_ELEMENT && in.getLocalName().equals("record")) {
-		    try{
+		    try {
 			insertValues(conn, columnNameValueMap);
-		    }catch(SQLException e){
+		    } catch (SQLException e) {
 			XMLToSQL.LOG.log(Level.WARNING, "SQL Error", e);
 		    }
 		    columnNameValueMap = null;
@@ -93,7 +85,14 @@ public abstract class Parser {
 	
     }
     
-    
+    /**
+     * Called on Parser before parse() is called.
+     * Here we just drop tables.
+     */
+    public void beforeParse(){
+	beforeCreateTables(conn);
+    }
+       
     protected void insertValues(Connection conn, Map<String, String> columnNameValueMap) throws SQLException {
 	// before insert
 	beforeInsert(conn, columnNameValueMap);
@@ -144,6 +143,22 @@ public abstract class Parser {
 	return ".xml";
     }
     
+    protected void beforeCreateTables(Connection conn) {
+	String dropQuery = "DROP TABLE IF EXISTS " + getTableName();
+	Statement stmt = null;
+	try {
+	    stmt = conn.createStatement();
+	    stmt.executeUpdate(dropQuery);
+	} catch (SQLException e) {
+	    XMLToSQL.LOG.log(Level.SEVERE, "SQL error, query: " + dropQuery, e);
+	    // most likely a table already dropped/never created
+	} finally {
+	    try {
+		stmt.close();
+	    } catch (SQLException e) {}
+	}
+    }
+    
     /**
      * given column names, e.g. {B, A, C}
      * returns INSERT INTO table (B,A,C) VALUES (:B,:A,:C);
@@ -154,7 +169,7 @@ public abstract class Parser {
 	String columnNamesString = Utils.joinStringList(columnNamesOrdered, ",");
 	List<String> placeholders = new ArrayList<String>();
 	for (String columnName : columnNamesOrdered) {
-	    placeholders.add(":"+columnName);
+	    placeholders.add(":" + columnName);
 	}
 	String placeholdersString = Utils.joinStringList(placeholders, ",");
 	return "INSERT INTO " + getTableName() + " (" + columnNamesString + ") VALUES (" + placeholdersString + ");";
@@ -173,4 +188,45 @@ public abstract class Parser {
     
     protected abstract void setValue(NamedParameterStatement namedStmt, String columnKey, String valueString) throws SQLException;
     
+    /*
+     * Progress bar
+     */
+    private long numberOfRecordsInXML;
+    private long timeAtStart;
+    private long timeAtLastReport;
+    
+    private void prepareProgressReporting() {
+	numberOfRecordsInXML = 0;
+	timeAtStart = System.currentTimeMillis();
+	timeAtLastReport = timeAtStart;
+	try {
+	    while (in.hasNext()) {
+		int event = in.next();
+		if (event == XMLStreamConstants.START_ELEMENT && in.getLocalName().equals("record")) {
+		    numberOfRecordsInXML++;
+		}
+	    }
+	} catch (XMLStreamException e) {
+	    XMLToSQL.LOG.log(Level.WARNING, "Could not count number of lines in file in preperation for progress reporting", e);
+	}
+	getReader();
+    }
+    
+    private void printProgressReport() {
+	if (inRecordNumber > numberOfRecordsInXML) return;
+	//
+	long timeSinceLastReport = System.currentTimeMillis() - timeAtLastReport;
+	if (timeSinceLastReport < 1000) return;
+	timeAtLastReport = System.currentTimeMillis();
+	//
+	String str = getXMLFilenameWithoutExtension()+getXMLExtension() + " [";
+	int cols = 20;
+	float percent = (float) inRecordNumber / (float) numberOfRecordsInXML;
+	int colsFull = (int) (percent * cols);
+	for (int i = 0; i < cols; i++) {
+	    str += i <= colsFull ? "=" : " ";
+	}
+	str += "] \t" + (((float) ((int) (percent * 10000))) / 100) + "% \t" + inRecordNumber + " / " + numberOfRecordsInXML;
+	System.out.println(str);
+    }
 }

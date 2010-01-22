@@ -6,7 +6,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Note: applies to both movies and TV, but ignores video games
+ * Note: ignores TV and video games (parses movies and for video movies)
  */
 public class Movies extends Parser {
     
@@ -23,14 +23,10 @@ public class Movies extends Parser {
     /**
      * name (NOT NULL), year (NOT NULL), and inyear combined are unique
      */
-    public enum KEY_COLUMNS {
+    public enum COLUMNS {
 	name, year, inyear
     }
-    
-    public enum COLUMNS {
-	istv
-    };
-    
+        
     public Movies(String filePath) {
 	super(filePath);
     }
@@ -69,7 +65,6 @@ public class Movies extends Parser {
 	// String yearColumn = lineParts[lineParts.length - 1];
 	if (!isUseful(fullName)) return null; 
 	r.putAll(getMovieKey(fullName));
-	if (isTVShow(fullName)) r.put(COLUMNS.istv.name(), "Y");
 	return r;
     }
     
@@ -155,7 +150,7 @@ public class Movies extends Parser {
      * @see http://www.imdb.com/help/search?domain=helpdesk_faq&index=2&file=title_formats
      */
     public static boolean isUseful(String fullName) {
-	return (isMovie(fullName) || isTVShow(fullName)) && hasYearInName(fullName);
+	return isMovie(fullName) && hasYearInName(fullName);
     }
     
     public static boolean isMovie(String fullName) {
@@ -180,9 +175,9 @@ public class Movies extends Parser {
      */
     public static Map<String, String> getMovieKey(String fullName) {
 	Map<String, String> r = new HashMap<String, String>();
-	r.put(KEY_COLUMNS.name.name(), getMovieNameOnly(fullName));
-	r.put(KEY_COLUMNS.year.name(), getYearFromName(fullName));
-	if (!isUniqueNameForYear(fullName)) r.put(KEY_COLUMNS.inyear.name(), getInYearIdentifier(fullName));
+	r.put(COLUMNS.name.name(), getMovieNameOnly(fullName));
+	r.put(COLUMNS.year.name(), getYearFromName(fullName));
+	if (!isUniqueNameForYear(fullName)) r.put(COLUMNS.inyear.name(), getInYearIdentifier(fullName));
 	return r;
     }
 }

@@ -27,27 +27,35 @@ public class Genres extends Parser {
     protected String getXMLFilenameWithoutExtension() {return "genres";}
     
     @Override
-    protected void beforeInserts(Connection conn) throws SQLException {
+    public void beforeCreateTables(Connection conn) {
 	// drop genre names table
 	Statement stmt = null;
 	try{
 	    stmt = conn.createStatement();
 	    stmt.executeUpdate(DROP_GENRE_NAMES_TABLE);
-	}catch(SQLException e){ // don't care
+	}catch(SQLException e){
 	}finally{
-	    stmt.close();
+	    try{
+		stmt.close();
+	    }catch(Exception e2){}
 	}
 	// drop genres table
 	stmt = null;
 	try{
 	    stmt = conn.createStatement();
 	    stmt.executeUpdate(DROP_GENRES_TABLE);
-	}catch(SQLException e){ // don't care
+	}catch(SQLException e){
 	}finally{
-	    stmt.close();
+	    try{
+		stmt.close();
+	    }catch(Exception e2){}
 	}
+    }
+    
+    @Override
+    protected void beforeInserts(Connection conn) throws SQLException {
 	// create genre names table
-	stmt = null;
+	Statement stmt = null;
 	try{
 	    stmt = conn.createStatement();
 	    stmt.executeUpdate(CREATE_GENRE_NAMES_TABLE);
