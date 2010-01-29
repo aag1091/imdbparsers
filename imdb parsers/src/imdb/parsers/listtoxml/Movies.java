@@ -6,7 +6,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Note: ignores TV and video games (parses movies and for video movies)
+ * Note: ignores TV and video games (parses movies and for video movies).
+ * Note: does not ignore TV shows it cannot detect --- Some TV shows do not use a (TV) tag, and must be detected after
+ * XMLToSQL parse:
+ * "UPDATE movies SET istv = 'Y' WHERE COUNT(SELECT * FROM ratings WHERE ratings.movies_id = movies.id) > 1;"
+ * FIXME: doesnt do the above yet
  */
 public class Movies extends Parser {
     
@@ -26,7 +30,7 @@ public class Movies extends Parser {
     public enum COLUMNS {
 	name, year, inyear
     }
-        
+    
     public Movies(String filePath) {
 	super(filePath);
     }
@@ -57,13 +61,12 @@ public class Movies extends Parser {
 	// note: episode name is surrounded by curly brackets
 	// note: tv shows have name surrounded by quotes
 	Map<String, String> r = new HashMap<String, String>();
-	
 	String[] lineParts = line.split("\t");
 	String fullName = lineParts[0];
 	// ignore yearColumn because other lists don't have it. Movies without a year in yearcolumn are rare,
 	// (FIXME:assuming) most likely much less popular
 	// String yearColumn = lineParts[lineParts.length - 1];
-	if (!isUseful(fullName)) return null; 
+	if (!isUseful(fullName)) return null;
 	r.putAll(getMovieKey(fullName));
 	return r;
     }
@@ -77,7 +80,7 @@ public class Movies extends Parser {
     public static String getMovieNameOnly(String fullName) {
 	// FIXME
 	String r = removeOutsideQuotes(stripYearAndAllAfter(fullName));
-	if(r.length() > ListToXML.maxNameLength){
+	if (r.length() > ListToXML.maxNameLength) {
 	    ListToXML.maxNameLength = r.length();
 	}
 	return r;
@@ -162,7 +165,8 @@ public class Movies extends Parser {
     }
     
     public static boolean isTVShow(String fullName) {
-	return fullName.contains("(TV)") || (fullName.contains("{") && fullName.contains("}"));
+	return fullName.contains("(TV)") || (fullName.contains("{") && fullName.contains("}")) ||
+	(!isVideoGame(fullName) && !isMadeForVideoMovie(fullName) && fullName.startsWith("\"") && fullName.substring(1).contains("\""));
     }
     
     public static boolean isMadeForVideoMovie(String fullName) {

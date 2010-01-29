@@ -49,6 +49,8 @@ public class Movies {
 	String test17 = "for-video-movie (1999) (V)";
 	String test18 = "\"tv show\" (1999) (TV) {episode 1}";
 	String test19 = "\"tv show no tv tag\" (1999) {episode 1}";
+	String test20 = "\"tv show no tv tag and no episode name\" (1999)";
+	String test21 = "\"tv show no tv tag and no episode name 2 (1999)";
 	testIsMovie(test15, true);
 	testIsMovie(test16, false);
 	testIsMovie(test17, true);
@@ -57,6 +59,8 @@ public class Movies {
 	testIsTVShow(test16, false);
 	testIsTVShow(test17, false);
 	testIsTVShow(test18, true);
+	testIsTVShow(test20, true);
+	testIsTVShow(test21, false);
 	testIsUseful(test15, true);
 	testIsUseful(test16, false);
 	testIsUseful(test17, true);
