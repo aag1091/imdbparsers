@@ -145,7 +145,7 @@ public class Movies extends Parser {
 	if (m.find()) {
 	    return m.group();
 	} else {
-	    throw new IllegalArgumentException("no In Year Identifier found, use isUniqueNameForYear() first");
+	    throw new IllegalArgumentException("no In Year Identifier found, use isUniqueNameForYear() first. fullName:"+fullName);
 	}
     }
     
