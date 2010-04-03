@@ -1,6 +1,5 @@
 package imdb.parsers.listtoxml;
 
-import imdb.parsers.Utils;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -8,15 +7,12 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.Map;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
 
 
 public abstract class Parser {
-    
-    private static final Logger LOG = Utils.getConsoleLogger(Parser.class);
     
     private static XMLOutputFactory xof = XMLOutputFactory.newInstance();
     
@@ -25,6 +21,7 @@ public abstract class Parser {
     protected long inLineNumber;
     private File outFile;
     private XMLStreamWriter out;
+    private long recordsAdded;
     
     private Map<String, String> nextRecord;
     
@@ -40,7 +37,7 @@ public abstract class Parser {
     }
     
     public void parse() {
-	LOG.fine("Parsing: " + getListFilenameWithoutExtension());
+	ListToXML.LOG.fine("Parsing: " + getListFilenameWithoutExtension());
 	getNewReader();
 	getNewWriter();
 	// prepare progress reporting
@@ -55,15 +52,18 @@ public abstract class Parser {
 	    while (hasMoreRecords()) {
 		Map<String, String> record = getNextRecord();
 		out.writeStartElement("record");
+		ListToXML.LOG.log(Level.FINEST, "record");
 		for (String key : record.keySet()) {
 		    writeElement(out, key, record.get(key));
+		    ListToXML.LOG.log(Level.FINEST, key+"="+record.get(key));
 		}
 		out.writeEndElement(); // </record>
+		recordsAdded++;
 		printProgressReport();
 	    }
 	    out.writeEndElement(); // </records>
 	    out.writeEndDocument();
-	    LOG.fine("Finished Parsing: " + getListFilenameWithoutExtension());
+	    ListToXML.LOG.fine("Finished Parsing: " + getListFilenameWithoutExtension());
 	} catch (XMLStreamException e) {
 	    throw new RuntimeException(e);
 	} finally {
@@ -145,6 +145,7 @@ public abstract class Parser {
     
     private void prepareProgressReporting() {
 	if(nextRecord != null) throw new IllegalStateException("prepareProgressReporting() must be called before starting parsing of actual data, because it uses the same reader");
+	recordsAdded = 0;
 	numberOfLinesInFile = 0;
 	timeAtStart = System.currentTimeMillis();
 	timeAtLastReport = timeAtStart;
@@ -157,7 +158,7 @@ public abstract class Parser {
 		
 		
 	} catch (IOException e) {
-	    LOG.log(Level.WARNING, "Could not count number of lines in file in preperation for progress reporting", e);
+	    ListToXML.LOG.log(Level.WARNING, "Could not count number of lines in file in preperation for progress reporting", e);
 	}
 	getNewReader();
     }
@@ -167,7 +168,7 @@ public abstract class Parser {
 	if (inLineNumber > numberOfLinesInFile) return;
 	//
 	long timeSinceLastReport = System.currentTimeMillis() - timeAtLastReport;
-	if (timeSinceLastReport < 1000) return;
+	if (timeSinceLastReport < 10000) return;
 	timeAtLastReport = System.currentTimeMillis();
 	//
 	String str = getListFilenameWithoutExtension()+getListExtension() + " [";
@@ -177,7 +178,8 @@ public abstract class Parser {
 	for (int i = 0; i < cols; i++) {
 	    str += i <= colsFull ? "=" : " ";
 	}
-	str += "] \t" + (((float) ((int) (percent * 10000))) / 100) + "% \t" + inLineNumber + " / " + numberOfLinesInFile;
+	float percentRounded = (((float) ((int) (percent * 10000))) / 100);
+	str += "] \t" + percentRounded + "% \t" + inLineNumber + " / " + numberOfLinesInFile +" \t records added: "+recordsAdded + "\t est. total: " + recordsAdded * (100 / percentRounded);
 	System.out.println(str);
     }
     

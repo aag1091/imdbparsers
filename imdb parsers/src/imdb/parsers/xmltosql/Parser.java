@@ -129,6 +129,7 @@ public abstract class Parser {
 	try {
 	    if (in != null) in.close();
 	    in = xif.createXMLStreamReader(new FileInputStream(inFile));
+	    inRecordNumber = 0;
 	} catch (IOException e) {
 	    throw new RuntimeException(e);
 	} catch (XMLStreamException e) {
@@ -216,7 +217,7 @@ public abstract class Parser {
 	if (inRecordNumber > numberOfRecordsInXML) return;
 	//
 	long timeSinceLastReport = System.currentTimeMillis() - timeAtLastReport;
-	if (timeSinceLastReport < 1000) return;
+	if (timeSinceLastReport < 10000) return;
 	timeAtLastReport = System.currentTimeMillis();
 	//
 	String str = getXMLFilenameWithoutExtension()+getXMLExtension() + " [";
@@ -226,7 +227,8 @@ public abstract class Parser {
 	for (int i = 0; i < cols; i++) {
 	    str += i <= colsFull ? "=" : " ";
 	}
-	str += "] \t" + (((float) ((int) (percent * 10000))) / 100) + "% \t" + inRecordNumber + " / " + numberOfRecordsInXML;
+	float percentRounded = (((float) ((int) (percent * 10000))) / 100);
+	str += "] \t" + percentRounded + "% \t" + inRecordNumber + " / " + numberOfRecordsInXML;
 	System.out.println(str);
     }
 }

@@ -7,7 +7,8 @@ import java.util.regex.Pattern;
 
 /**
  * Note: ignores TV and video games (parses movies and for video movies).
- * Note: does not ignore TV shows it cannot detect --- Some TV shows do not use a (TV) tag, and must be detected after
+ * Note: does not ignore TV shows it cannot detect --- adds TV shows incorrectly formatted as movies --- Some TV shows
+ * incorrectly do not use a (TV) tag or quotes around the name, and must be detected later with e.g. if it has multiple ratings it's a tv show
  * XMLToSQL parse:
  * "UPDATE movies SET istv = 'Y' WHERE COUNT(SELECT * FROM ratings WHERE ratings.movies_id = movies.id) > 1;"
  * FIXME: doesnt do the above yet
@@ -145,7 +146,7 @@ public class Movies extends Parser {
 	if (m.find()) {
 	    return m.group();
 	} else {
-	    throw new IllegalArgumentException("no In Year Identifier found, use isUniqueNameForYear() first. fullName:"+fullName);
+	    throw new IllegalArgumentException("no In Year Identifier found, use isUniqueNameForYear() first. fullName:" + fullName);
 	}
     }
     
@@ -165,8 +166,9 @@ public class Movies extends Parser {
     }
     
     public static boolean isTVShow(String fullName) {
-	return fullName.contains("(TV)") || (fullName.contains("{") && fullName.contains("}")) ||
-	(!isVideoGame(fullName) && !isMadeForVideoMovie(fullName) && fullName.startsWith("\"") && fullName.substring(1).contains("\""));
+	return fullName.contains("(TV)") ||
+	       (fullName.contains("{") && fullName.contains("}")) ||
+	       (!isVideoGame(fullName) && !isMadeForVideoMovie(fullName) && fullName.startsWith("\"") && fullName.substring(1).contains("\""));
     }
     
     public static boolean isMadeForVideoMovie(String fullName) {

@@ -11,7 +11,7 @@ public class Movies extends Parser {
     enum COLUMNS_FROM_XML {name, year, inyear};
 
     public static final String QUERY_EXISTS = "SELECT * FROM movies WHERE (name = ? AND year = ? AND inyear = ?);";
-    public static final String CREATE_MOVIES_TABLE = "CREATE TABLE movies (id INT AUTO_INCREMENT PRIMARY KEY, name CHAR(255) NOT NULL, year INT NOT NULL, inyear CHAR(10), CONSTRAINT UNIQUE CLUSTERED (name, year, inyear));";
+    public static final String CREATE_MOVIES_TABLE = "CREATE TABLE movies (id INT AUTO_INCREMENT PRIMARY KEY, name CHAR(255) NOT NULL, year INT NOT NULL, inyear CHAR(10) NOT NULL DEFAULT '', CONSTRAINT UNIQUE CLUSTERED (name, year, inyear));";
     
     public Movies(Connection conn) {super(conn);}
     public Movies(String filePath, Connection conn) {super(filePath, conn);}
