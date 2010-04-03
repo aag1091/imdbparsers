@@ -10,6 +10,9 @@ import java.util.logging.Logger;
 /**
  * Parses each .list and outputs to a .xml
  * Explicitly uses UTF-8 encoding.
+ * 
+ * See http://www.imdb.com/help/show_leaf?titleformat
+ * FIXME: fully implement the format above
  */
 public class ListToXML{
     

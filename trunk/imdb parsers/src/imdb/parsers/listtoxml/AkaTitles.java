@@ -7,7 +7,7 @@ import java.util.Map;
 public class AkaTitles extends Parser{
 
     public enum COLUMNS {akaTitle};
-    
+
     private String currentMovieName;
     private boolean skipGroup = false;
     

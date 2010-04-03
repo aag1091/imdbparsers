@@ -27,6 +27,8 @@ import java.util.logging.Logger;
  * </records>
  * where name-value elements are key-value mappings, and must have children elements.
  * Explicitly uses UTF-8.
+ * 
+ * NOTE: the resulting SQL has a table "movies" which has a clustered unique constraint over movie-year-inyear. Because we cannot compare NULL against another NULL, inyear is the emptry string if it is null.
  */
 public class XMLToSQL {
     
@@ -89,7 +91,6 @@ public class XMLToSQL {
     
     public void run() {
 	LOG.info("Parsing from XML to SQL");
-	LOG.info("connection:"+jdbcConnection);
 	LOG.info("driver:"+jdbcDriver);
 	LOG.info("filePath:"+filePath);
 	LOG.info("parse:"+onlyParse);
@@ -100,6 +101,7 @@ public class XMLToSQL {
 		Class.forName(jdbcDriver);
 	    }
 	    conn = DriverManager.getConnection(jdbcConnection);
+	    LOG.info("connection (object):"+conn);
 	} catch (SQLException e) {
 	    throw new RuntimeException(e);
 	} catch (ClassNotFoundException e) {

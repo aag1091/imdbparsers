@@ -48,7 +48,8 @@ public class Ratings extends Parser {
     @Override
     protected String getInsertStatement(Map<String, String> columnNameValueMap) {
 	boolean inyearIsNull = !columnNameValueMap.containsKey(Movies.COLUMNS_FROM_XML.inyear.name());
-	return "INSERT INTO ratings (movies_id, votes, rating) SELECT movies.id, :votes, :rating FROM movies WHERE (name = :name AND year = :year AND inyear " + (inyearIsNull?"IS NULL":"= :inyear") + ");";
+	// FIXME: this convention should be code reused (NULL is stored as empty string so that equality comparisons can be made between movies without inyears)
+	return "INSERT INTO ratings (movies_id, votes, rating) SELECT movies.id, :votes, :rating FROM movies WHERE (name = :name AND year = :year AND inyear = " + ( inyearIsNull ? "''" : ":inyear" ) + ");";
     }
     
 }

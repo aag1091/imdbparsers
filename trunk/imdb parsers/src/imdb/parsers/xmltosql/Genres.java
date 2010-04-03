@@ -28,6 +28,7 @@ public class Genres extends Parser {
     
     @Override
     public void beforeCreateTables(Connection conn) {
+	//System.out.println("overridden drop tables method");
 	// drop genre names table
 	Statement stmt = null;
 	try{
@@ -100,6 +101,7 @@ public class Genres extends Parser {
     @Override
     protected String getInsertStatement(Map<String, String> columnNameValueMap) {
 	boolean inyearIsNull = !columnNameValueMap.containsKey(Movies.COLUMNS_FROM_XML.inyear.name());
-	return "INSERT INTO genres (movies_id, genre_names_id) SELECT movies.id, genre_names.id FROM movies, genre_names WHERE (movies.name = :name AND movies.year = :year AND movies.inyear " + (inyearIsNull?"IS NULL":"= :inyear") + " AND genre_names.name = :genre);";
+	// FIXME: this convention should be code reused (NULL is stored as empty string so that equality comparisons can be made between movies without inyears)
+	return "INSERT INTO genres (movies_id, genre_names_id) SELECT movies.id, genre_names.id FROM movies, genre_names WHERE (movies.name = :name AND movies.year = :year AND movies.inyear = " + ( inyearIsNull ? "''" : ":inyear" ) + " AND genre_names.name = :genre);";
     }
 }
