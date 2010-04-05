@@ -1,0 +1,8 @@
+#summary notes about usage etc.
+
+== Notes ==
+* Currently skips over TV shows.
+
+
+== To Do ==
+* To get SQL you do a two step process list>xml, xml>sql. Update to a one step process.
